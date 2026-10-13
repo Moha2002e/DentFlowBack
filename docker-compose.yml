@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: dentflow-db
+    environment:
+      POSTGRES_DB: dentflow
+      POSTGRES_USER: dentflow
+      POSTGRES_PASSWORD: dentflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - dentflow-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dentflow -d dentflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  dentflow-db-data:

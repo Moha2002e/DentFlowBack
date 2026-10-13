@@ -1,6 +1,5 @@
 package com.dentflow.controller;
 
-import com.dentflow.dto.AdminUserUpdateRequest;
 import com.dentflow.dto.AdminUserCreateRequest;
 import com.dentflow.dto.UserResponse;
 import jakarta.validation.Valid;
@@ -42,14 +41,6 @@ public class UserController {
     @GetMapping("/{id}")
     public UserResponse getUserById(@PathVariable Long id) {
         return userService.getUserById(id);
-    }
-
-    @PatchMapping("/{id}")
-    public UserResponse updateUser(
-            @PathVariable Long id,
-            @Valid @RequestBody AdminUserUpdateRequest request
-    ) {
-        return userService.updateUser(id, request);
     }
 
     @DeleteMapping("/{id}")
