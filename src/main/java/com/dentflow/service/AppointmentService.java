@@ -4,7 +4,7 @@ import com.dentflow.dto.AppointmentCancelRequest;
 import com.dentflow.dto.AppointmentRequest;
 import com.dentflow.dto.AppointmentResponse;
 import com.dentflow.dto.AppointmentStatsResponse;
-import com.dentflow.dto.CalendarDayResponse;
+import com.dentflow.dto.CalendarMonthResponse;
 import com.dentflow.model.Appointment;
 import com.dentflow.model.AppointmentStatus;
 import com.dentflow.model.Dentist;
@@ -18,9 +18,18 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
+import java.time.temporal.WeekFields;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.List;
 
 @Service
@@ -60,16 +69,68 @@ public class AppointmentService {
     }
 
     /**
-     * Pastilles du calendrier : nombre de rendez-vous actifs par jour sur un mois.
-     * Le regroupement est fait par la base.
+     * Grille mensuelle complete : semaines, cases debordant sur les mois voisins
+     * et rendez-vous repartis par jour. Tout est calcule ici, le client se
+     * contente d'afficher.
      */
     @Transactional(readOnly = true)
-    public List<CalendarDayResponse> getCalendar(YearMonth month) {
+    public CalendarMonthResponse getCalendar(YearMonth month) {
         YearMonth target = month == null ? YearMonth.now() : month;
 
-        return appointmentRepository.findDayCounts(
-                target.atDay(1).atStartOfDay(),
-                target.plusMonths(1).atDay(1).atStartOfDay()
+        // La grille commence au lundi precedant le 1er et finit au dimanche
+        // suivant le dernier jour : aucune case vide en bordure.
+        LocalDate gridStart = target.atDay(1).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate gridEnd = target.atEndOfMonth().with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+
+        Map<LocalDate, List<AppointmentResponse>> byDay = appointmentRepository
+                .findDayDetailed(gridStart.atStartOfDay(), gridEnd.plusDays(1).atStartOfDay())
+                .stream()
+                .collect(Collectors.groupingBy(
+                        appointment -> appointment.getAppointmentDate().toLocalDate(),
+                        LinkedHashMap::new,
+                        Collectors.mapping(AppointmentResponse::from, Collectors.toList())
+                ));
+
+        LocalDate today = LocalDate.now();
+        List<CalendarMonthResponse.CalendarWeek> weeks = new ArrayList<>();
+        int total = 0;
+
+        for (LocalDate weekStart = gridStart; !weekStart.isAfter(gridEnd); weekStart = weekStart.plusWeeks(1)) {
+            List<CalendarMonthResponse.CalendarCell> days = new ArrayList<>();
+
+            for (int offset = 0; offset < 7; offset++) {
+                LocalDate date = weekStart.plusDays(offset);
+                List<AppointmentResponse> ofDay = byDay.getOrDefault(date, List.of());
+                boolean inMonth = YearMonth.from(date).equals(target);
+
+                if (inMonth) {
+                    total += ofDay.size();
+                }
+
+                days.add(new CalendarMonthResponse.CalendarCell(
+                        date,
+                        date.getDayOfMonth(),
+                        inMonth,
+                        date.equals(today),
+                        date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY,
+                        ofDay
+                ));
+            }
+
+            weeks.add(new CalendarMonthResponse.CalendarWeek(
+                    weekStart.get(WeekFields.ISO.weekOfWeekBasedYear()),
+                    days
+            ));
+        }
+
+        return new CalendarMonthResponse(
+                target.toString(),
+                target.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.FRENCH)),
+                target.minusMonths(1).toString(),
+                target.plusMonths(1).toString(),
+                List.of("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"),
+                weeks,
+                total
         );
     }
 
@@ -113,6 +174,9 @@ public class AppointmentService {
         }
         if (!dentist.isActive()) {
             throw new IllegalStateException("Ce dentiste est desactive : impossible de lui creer un rendez-vous");
+        }
+        if(request.appointmentDate().isBefore(LocalDateTime.now())){
+            throw new IllegalStateException("Impossible de creer un rendez-vous dans le passée");
         }
 
         Treatment treatment = resolveTreatment(request.treatmentId());

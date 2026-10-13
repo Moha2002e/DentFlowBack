@@ -4,7 +4,7 @@ import com.dentflow.dto.AppointmentCancelRequest;
 import com.dentflow.dto.AppointmentRequest;
 import com.dentflow.dto.AppointmentResponse;
 import com.dentflow.dto.AppointmentStatsResponse;
-import com.dentflow.dto.CalendarDayResponse;
+import com.dentflow.dto.CalendarMonthResponse;
 import com.dentflow.model.AppointmentStatus;
 import com.dentflow.service.AppointmentService;
 import jakarta.validation.Valid;
@@ -51,11 +51,11 @@ public class AppointmentController {
     }
 
     /**
-     * Pastilles du calendrier : nombre de rendez-vous actifs par jour du mois.
+     * Grille mensuelle complete, prete a afficher.
      * Mois au format ISO (2026-10) ; mois courant si absent.
      */
     @GetMapping("/calendar")
-    public List<CalendarDayResponse> getCalendar(
+    public CalendarMonthResponse getCalendar(
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM") YearMonth month
     ) {
         return appointmentService.getCalendar(month);

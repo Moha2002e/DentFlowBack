@@ -1,7 +1,6 @@
 package com.dentflow.repository;
 
 import com.dentflow.model.Appointment;
-import com.dentflow.dto.CalendarDayResponse;
 import com.dentflow.model.AppointmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -55,25 +54,6 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     List<Appointment> findDayDetailed(
             @Param("dayStart") LocalDateTime dayStart,
             @Param("dayEnd") LocalDateTime dayEnd
-    );
-
-    /**
-     * Nombre de rendez-vous actifs par journee sur une periode : les pastilles du
-     * calendrier. Le regroupement est fait par la base, pas par le client.
-     */
-    @Query("""
-            select new com.dentflow.dto.CalendarDayResponse(
-                       cast(a.appointmentDate as LocalDate), count(a))
-            from Appointment a
-            where a.status <> com.dentflow.model.AppointmentStatus.CANCELLED
-              and a.appointmentDate >= :start
-              and a.appointmentDate < :end
-            group by cast(a.appointmentDate as LocalDate)
-            order by cast(a.appointmentDate as LocalDate)
-            """)
-    List<CalendarDayResponse> findDayCounts(
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end
     );
 
     @Query("""
